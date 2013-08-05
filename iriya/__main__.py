@@ -8,6 +8,8 @@ from pysubs import SSAFile
 
 from .nativeapi import FontContext
 
+ENTRYPOINT = "iriya"
+
 ContextKey = namedtuple("ContextKey", ["name", "bold", "italics"])
 
 TAG_RE = re.compile(r"(\{.*?\})")
