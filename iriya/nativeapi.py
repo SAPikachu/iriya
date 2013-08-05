@@ -1,8 +1,11 @@
 from ctypes import (
-    windll, WinError, c_wchar_p, c_ushort,
+    windll, WinError, c_wchar_p, c_ushort, create_unicode_buffer, sizeof,
 )
+import logging
 
 __all__ = ["FontContext"]
+
+log = logging.getLogger(__name__)
 
 CreateCompatibleDC = windll.gdi32.CreateCompatibleDC
 CreateFont = windll.gdi32.CreateFontW
@@ -10,6 +13,7 @@ SelectObject = windll.gdi32.SelectObject
 GetGlyphIndices = windll.gdi32.GetGlyphIndicesW
 DeleteObject = windll.gdi32.DeleteObject
 DeleteDC = windll.gdi32.DeleteDC
+GetTextFace = windll.gdi32.GetTextFaceW
 
 
 def error_checker(error_value=0):
@@ -23,13 +27,10 @@ def error_checker(error_value=0):
 
 
 CreateCompatibleDC.errcheck = error_checker()
-CreateCompatibleDC.restype = int
 CreateFont.errcheck = error_checker()
-CreateFont.restype = int
 SelectObject.errcheck = error_checker(-1)
-SelectObject.restype = int
 GetGlyphIndices.errcheck = error_checker(-1)
-GetGlyphIndices.restype = int
+GetTextFace.errcheck = error_checker()
 
 FW_NORMAL = 400
 FW_BOLD = 700
@@ -44,17 +45,41 @@ DEFAULT_PITCH_AND_FAMILY = 0
 GGI_MARK_NONEXISTING_GLYPHS = 1
 
 
+def create_font_simple(name, bold, italics):
+    return CreateFont(
+        0, 0, 0, 0, FW_BOLD if bold else FW_NORMAL, bool(italics),
+        False, False, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+        CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH_AND_FAMILY,
+        c_wchar_p(name)
+    )
+
+
 class FontContext:
     def __init__(self, name, bold=False, italics=False):
         self.dc = self.font = self.old_font = None
         self.dc = CreateCompatibleDC(None)
-        self.font = CreateFont(
-            0, 0, 0, 0, FW_BOLD if bold else FW_NORMAL, bool(italics),
-            False, False, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH_AND_FAMILY,
-            c_wchar_p(name)
+
+        name_buffer = create_unicode_buffer(2048)
+        fallback_font = create_font_simple(
+            name + "-NONEXISTENT-" + str(id(self)), bold, italics,
         )
+        try:
+            self.old_font = SelectObject(self.dc, fallback_font)
+            GetTextFace(self.dc, sizeof(name_buffer) - 1, name_buffer)
+        finally:
+            SelectObject(self.dc, self.old_font)
+            DeleteObject(fallback_font)
+
+        fallback_font_name = name_buffer.value
+        log.debug("Name of fallback font: %s", fallback_font_name)
+
+        self.font = create_font_simple(name, bold, italics)
         self.old_font = SelectObject(self.dc, self.font)
+        GetTextFace(self.dc, sizeof(name_buffer) - 1, name_buffer)
+        log.debug("Name of created font: %s", name_buffer.value)
+        if (name_buffer.value == fallback_font_name and
+            name.lower() != fallback_font_name.lower()):
+            log.warn("Font %s is either not installed or the default font in this system.", name)
 
     def __del__(self):
         try:
