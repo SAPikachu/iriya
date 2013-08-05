@@ -11,6 +11,9 @@ from .nativeapi import FontContext
 ENTRYPOINT = "iriya"
 
 ContextKey = namedtuple("ContextKey", ["name", "bold", "italics"])
+ContextKey.__str__ = lambda self: "{}{}{}".format(
+    self.name, "+Bold" if self.bold else "", "+Italics" if self.italics else ""
+)
 
 TAG_RE = re.compile(r"(\{.*?\})")
 TAG_PART_RE = re.compile(r"(fn|b(?=[01])|i(?=[01]))(.+)", flags=re.I)
@@ -22,6 +25,7 @@ def key_from_style(style):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
+        prog=ENTRYPOINT,
         description="Checks whether all characters in ASS file exist in declared fonts"
     )
     parser.add_argument("files", nargs="+")
@@ -30,7 +34,7 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=args.log_level.upper())
-    log = logging.getLogger(sys.argv[0])
+    log = logging.getLogger(ENTRYPOINT)
     contexts = {}
     have_nonexistent_char = False
 
@@ -58,8 +62,8 @@ def main(argv=None):
                 result = context.check(display_text)
                 if result:
                     have_nonexistent_char = True
-                    log.warn("%s Dialogue #%s: %s do not exist in %s",
-                             name, line_number, result, key)
+                    log.warn("%s Dialogue #%s: [%s] does not exist in %s",
+                             name, line_number, "".join(result), key)
 
                 text = "" if not m else text[m.end():]
                 if not text:
