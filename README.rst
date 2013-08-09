@@ -1,7 +1,7 @@
 iriya
 ========
 
-Checks whether all characters in ASS file exist in specified fonts.
+Check whether all characters in ASS file exist in specified fonts.
 
 
 Installation
