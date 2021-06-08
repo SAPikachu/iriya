@@ -4,7 +4,7 @@ import logging
 import sys
 import re
 
-from pysubs import SSAFile
+from pysubs2 import SSAFile
 
 from .nativeapi import FontContext
 
@@ -46,10 +46,12 @@ def main(argv=None):
         return contexts[key]
 
     for name in args.files:
-        ssa = SSAFile(name)
-        line_number = -1
+        ssa = SSAFile.load(name)
+        line_number = 0
         for event in ssa.events:
             line_number += 1
+            if "type=Comment" in str(event):
+                continue
             style = ssa.styles[event.style]
             key = key_from_style(style)
             context = get_context(key)
@@ -62,7 +64,7 @@ def main(argv=None):
                 result = context.check(display_text)
                 if result:
                     have_nonexistent_char = True
-                    log.warn("%s Dialogue #%s: [%s] does not exist in %s",
+                    log.warning("%s Dialogue #%s: [%s] does not exist in %s",
                              name, line_number, "".join(result), key)
 
                 text = "" if not m else text[m.end():]
@@ -73,8 +75,12 @@ def main(argv=None):
                 log.debug("Override tags: %s", ovr_tags)
                 for tag in ovr_tags:
                     tag = tag.rstrip()
-                    if tag.lower() == "r":
-                        key = key_from_style(style)
+                    if tag[:1].lower() == "r":
+                        if len(tag) == 1:
+                            key = key_from_style(style)
+                        else:
+                            style_str = tag[1:]
+                            key = key_from_style(ssa.styles[style_str])
                         continue
 
                     tag_match = TAG_PART_RE.match(tag)
